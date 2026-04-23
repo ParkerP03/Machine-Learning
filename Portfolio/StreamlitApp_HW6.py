@@ -145,7 +145,7 @@ def display_explanation(input_df, session, aws_bucket):
     st.pyplot(fig)
     # top feature 
     # top_feature = pd.Series(shap_values[0].values, index=shap_values[0].feature_names).abs().idxmax()
-    top_feature = pd.Series(shap_values[0, :, 0].values, index=shap_values[0, :, 0].feature_names).abs().idxmax()
+    top_feature = pd.Series(shap_values[0].values, index=shap_values[0].feature_names).abs().idxmax()
     st.info(f"**Business Insight:** The most influential factor in this decision was **{top_feature}**.")
 
 
