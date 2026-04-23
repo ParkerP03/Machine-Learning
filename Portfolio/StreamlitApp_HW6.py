@@ -57,14 +57,44 @@ session = get_session(aws_id, aws_secret, aws_token)
 sm_session = sagemaker.Session(boto_session=session)
 
 # Data & Model Configuration
-df_features = extract_features()
+FEATURE_DEFAULTS = {
+    'EMA_15': 12.659130, 'MOM_15': 0.479972, 'STD_15': 0.470133,
+    'RSI_14': 56.814686, 'MACD': 0.199328,
+    'corr_PYPL': 0.001308, 'corr_PYPL_lag1': 0.001317,
+    'corr_MRNA': 0.0, 'corr_MRNA_lag1': 0.0,
+    'corr_AMZN': 0.002250, 'corr_AMZN_lag1': 0.002271,
+    'corr_BKNG': 0.001022, 'corr_BKNG_lag1': 0.001031,
+    'corr_FTV': 0.001192, 'corr_FTV_lag1': 0.001211,
+    'pair_EXPD': 0.000656, 'pair_EXPD_lag1': 0.000649,
+    'pair_TPL': 0.002117, 'pair_TPL_lag1': 0.002194,
+    'pair_PGR': 0.001175, 'pair_PGR_lag1': 0.001201,
+    'pair_CPRT': 0.001378, 'pair_CPRT_lag1': 0.001390,
+    'pair_PTC': 0.001148, 'pair_PTC_lag1': 0.001167,
+    'sentiment_LSTM': 0.746875, 'sentiment_lex': 0.323968,
+    'sentiment_LSTM_lag1': 0.728542, 'sentiment_lex_lag1': 0.273911
+}
+
+ALL_FEATURES = [
+    'EMA_15', 'MOM_15', 'STD_15', 'RSI_14', 'MACD',
+    'corr_PYPL', 'corr_PYPL_lag1', 'corr_MRNA', 'corr_MRNA_lag1',
+    'corr_AMZN', 'corr_AMZN_lag1', 'corr_BKNG', 'corr_BKNG_lag1',
+    'corr_FTV', 'corr_FTV_lag1', 'pair_EXPD', 'pair_EXPD_lag1',
+    'pair_TPL', 'pair_TPL_lag1', 'pair_PGR', 'pair_PGR_lag1',
+    'pair_CPRT', 'pair_CPRT_lag1', 'pair_PTC', 'pair_PTC_lag1',
+    'sentiment_LSTM', 'sentiment_lex', 'sentiment_LSTM_lag1', 'sentiment_lex_lag1'
+]
 
 MODEL_INFO = {
-        "endpoint": aws_endpoint,
-        "explainer": 'explainer_sentiment.shap',
-        "pipeline": 'finalized_sentiment_model.tar.gz',
-        "keys": ['ADBE','MSFT','JPM','sentiment_textblob'],
-        "inputs": [{"name": k, "type": "number", "min": -1.0, "max": 1.0, "default": 0.0, "step": 0.01} for k in ['ADBE','MSFT','JPM','sentiment_textblob']]
+    "endpoint": aws_endpoint,
+    "explainer": 'explainer_sentiment.shap',
+    "pipeline": 'finalized_sentiment_model.tar.gz',
+    "keys": ['sentiment_LSTM', 'sentiment_lex', 'sentiment_LSTM_lag1', 'sentiment_lex_lag1'],
+    "inputs": [
+        {"name": "sentiment_LSTM",      "min": -1.0, "max": 1.0, "default": 0.75, "step": 0.01},
+        {"name": "sentiment_lex",       "min": -1.0, "max": 1.0, "default": 0.32, "step": 0.01},
+        {"name": "sentiment_LSTM_lag1", "min": -1.0, "max": 1.0, "default": 0.73, "step": 0.01},
+        {"name": "sentiment_lex_lag1",  "min": -1.0, "max": 1.0, "default": 0.27, "step": 0.01},
+    ]
 }
 
 def load_pipeline(_session, bucket, key):
@@ -106,15 +136,14 @@ def call_model_api(input_df):
     )
 
     try:
-        # For regression
-        # raw_pred = predictor.predict(input_df)
-        # pred_val = pd.DataFrame(raw_pred).values[-1][0]
-        # return round(float(pred_val), 4), 200
-        # For classification
-        raw_pred = predictor.predict(input_df)
-        pred_val = pd.DataFrame(raw_pred).values[-1][0]
-        mapping = {-1: "SELL", 0: "HOLD", 1: "BUY"}
-        return mapping.get(pred_val), 200
+        # Build full 29-feature row using defaults, override with user inputs
+        full_row = FEATURE_DEFAULTS.copy()
+        for col in input_df.columns:
+            full_row[col] = input_df[col].values[0]
+        full_df = pd.DataFrame([full_row])[ALL_FEATURES]
+        raw_pred = predictor.predict(full_df.values)
+        pred_val = float(np.array(raw_pred).flatten()[0])
+        return round(pred_val, 6), 200
     except Exception as e:
         return f"Error: {str(e)}", 500
 
@@ -177,7 +206,7 @@ if submitted:
     
     res, status = call_model_api(input_df)
     if status == 200:
-        st.metric("Prediction Result", res)
+        st.metric("Predicted Next-Day Return", f"{res:.4%}")
         display_explanation(input_df,session, aws_bucket)
     else:
         st.error(res)
