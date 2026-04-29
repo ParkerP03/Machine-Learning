@@ -137,16 +137,19 @@ def display_explanation(input_df, session, aws_bucket):
     explainer = load_shap_explainer(session, aws_bucket, posixpath.join('explainer', explainer_name),os.path.join(tempfile.gettempdir(), explainer_name))
    
     best_pipeline = load_pipeline(session, aws_bucket, 'sklearn-pipeline-deployment')
-    preprocessing_pipeline = Pipeline(steps=best_pipeline.steps[:-2])
-    input_df=pd.DataFrame(input_df)
+
+    # Apply every pipeline step EXCEPT the classifier (feature_engineer, preprocessor, selector)
+    preprocessing_pipeline = Pipeline(steps=best_pipeline.steps[:-1])
+    input_df = pd.DataFrame(input_df)
     input_df_transformed = preprocessing_pipeline.transform(input_df)
-    #feature_names = best_pipeline[:-3].get_feature_names_out()
-    dataset_1 = dataset.iloc[:, 0:]
-    feature_names = dataset_1.columns[1:]
+
+    # Get the column names that survived feature selection
+    preprocessor = best_pipeline.named_steps['preprocessor']
     selector = best_pipeline.named_steps['selector']
-    selected_features = feature_names[selector.get_support()]
+    all_post_preprocess_names = preprocessor.get_feature_names_out()
+    selected_features = all_post_preprocess_names[selector.get_support()]
+
     input_df_transformed = pd.DataFrame(input_df_transformed, columns=selected_features)
-    #input_df_transformed = pd.DataFrame(input_df_transformed)
     shap_values = explainer(input_df_transformed)
    
     st.subheader("🔍 Decision Transparency (SHAP)")
