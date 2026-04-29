@@ -69,10 +69,16 @@ sm_session = sagemaker.Session(boto_session=session)
 
 MODEL_INFO = {
     "endpoint"  : aws_endpoint,
-    "explainer" : "explainer_sentiment.shap",
-    "pipeline"  : "finalized_loan_model.tar.gz",
-    "keys"      : ['TransactionAmt','card6_freq_enc','card3','C12'],
-    "inputs"    : [{"name": k, "type": "number", "min": -1.0, "max": 1.0, "default": 0.0, "step": 0.01} for k in ['TransactionAmt','card6_freq_enc','card3','C12']]
+    "explainer" : "explainer_loan.shap",                    
+    "pipeline"  : "finalized_loan_model.tar.gz",            
+    "keys"      : ["int_rate", "term_months", "fico_score", "dti", "loan_to_income"],
+    "inputs"    : [
+        {"name": "int_rate",       "type": "number", "min": 5.0,    "max": 30.0,   "default": 13.0,  "step": 0.1},
+        {"name": "term_months",    "type": "number", "min": 36,     "max": 60,     "default": 36,    "step": 24},
+        {"name": "fico_score",     "type": "number", "min": 600.0,  "max": 850.0,  "default": 700.0, "step": 1.0},
+        {"name": "dti",            "type": "number", "min": 0.0,    "max": 50.0,   "default": 18.0,  "step": 0.5},
+        {"name": "loan_to_income", "type": "number", "min": 0.0,    "max": 1.0,    "default": 0.2,   "step": 0.01},
+    ],
 }
 
 
